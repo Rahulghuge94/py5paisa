@@ -9,6 +9,7 @@ from typing import Union
 import json
 import websocket
 import pandas as pd
+from retry import retry
 
 class FivePaisaClient:
 
@@ -106,7 +107,8 @@ class FivePaisaClient:
 
     def positions(self):
         return self._user_info_request("POSITIONS")
-
+    
+    @retry(delay=2,tries=3)
     def _login_request(self, route):
         requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         res = self.session.post(route, json=self.login_payload, headers=HEADERS)
@@ -121,7 +123,8 @@ class FivePaisaClient:
 
     def _set_client_code(self, client_code):
         self.client_code = client_code
-
+        
+    @retry(delay=2,tries=3)
     def _user_info_request(self, data_type):
         payload = GENERIC_PAYLOAD
         payload["head"]["appName"] = self.APP_NAME
@@ -162,7 +165,8 @@ class FivePaisaClient:
         message = response["body"]["Message"]
         data = response["body"][return_type]
         return data
-
+    
+    @retry(delay=2,tries=3)
     def order_request(self, req_type) -> None:
 
         self.payload["body"]["ClientCode"] = self.client_code
@@ -350,6 +354,7 @@ class FivePaisaClient:
         self.ws_payload['ClientCode']=self.client_code
         self.ws_payload['MarketFeedData']=req_list
         return self.ws_payload
+    
     def Streming_data(self,wsPayload : dict):
         self.web_url=f'wss://openfeed.5paisa.com/Feeds/api/chat?Value1={self.Jwt_token}|{self.client_code}'
         auth=self.Login_check()
@@ -393,9 +398,9 @@ class FivePaisaClient:
         self.jwt_payload['JwtCode']=self.Jwt_token
         url=self.JWT_VALIDATION_ROUTE
         response = self.session.post(url, json=self.jwt_payload, headers=HEADERS).json()
-        
         return response['body']['Message']
-
+    
+    @retry(delay=2,tries=3)
     def historical_data(self,Exch:str,ExchangeSegment:str,ScripCode: int,time: str,From:str,To: str):
         validation=self.jwt_validate()
         
