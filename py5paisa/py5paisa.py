@@ -13,14 +13,16 @@ from retry import retry
 
 class FivePaisaClient:
 
-    LOGIN_ROUTE = "https://Openapi.5paisa.com/VendorsAPI/Service1.svc/V3/LoginRequestMobileNewbyEmail"
+    LOGIN_ROUTE = "https://Openapi.5paisa.com/VendorsAPI/Service1.svc/V4/LoginRequestMobileNewbyEmail"
 
     MARGIN_ROUTE = "https://Openapi.5paisa.com/VendorsAPI/Service1.svc/V3/Margin"
     ORDER_BOOK_ROUTE = "https://Openapi.5paisa.com/VendorsAPI/Service1.svc/V2/OrderBook"
     HOLDINGS_ROUTE = "https://openapi.5paisa.com/VendorsAPI/Service1.svc/V2/Holding"
     POSITIONS_ROUTE = "https://Openapi.5paisa.com/VendorsAPI/Service1.svc/V1/NetPositionNetWise"
 
-    ORDER_PLACEMENT_ROUTE = "https://Openapi.5paisa.com/VendorsAPI/Service1.svc/V1/OrderRequest"
+    ORDER_PLACEMENT_ROUTE = "https://Openapi.5paisa.com/VendorsAPI/Service1.svc/PlaceOrderRequest"
+    ORDER_MODIFY_ROUTE="https://Openapi.5paisa.com/VendorsAPI/Service1.svc/ModifyOrderRequest"
+    ORDER_CANCEL_ROUTE="https://Openapi.5paisa.com/VendorsAPI/Service1.svc/CancelOrderRequest"
     ORDER_STATUS_ROUTE = "https://Openapi.5paisa.com/VendorsAPI/Service1.svc/OrderStatus"
     TRADE_INFO_ROUTE = "https://Openapi.5paisa.com/VendorsAPI/Service1.svc/TradeInformation"
     
@@ -74,6 +76,7 @@ class FivePaisaClient:
         self.ENCRYPTION_KEY=cred["ENCRYPTION_KEY"]
         
         
+        
 
     def login(self):
         encryption_client = EncryptionClient(self.ENCRYPTION_KEY)
@@ -83,12 +86,13 @@ class FivePaisaClient:
         self.login_payload["body"]["Email_id"] = secret_email
         self.login_payload["body"]["Password"] = secret_passwd
         self.login_payload["body"]["My2PIN"] = secret_dob
-        self.login_payload["head"]["requestCode"] = "5PLoginV3"
+        self.login_payload["head"]["requestCode"] = "5PLoginV4"
         self.login_payload["head"]["appName"] = self.APP_NAME
         self.login_payload["head"]["key"] = self.USER_KEY
         self.login_payload["head"]["userId"] = self.USER_ID
         self.login_payload["head"]["password"] = self.PASSWORD  
         res = self._login_request(self.LOGIN_ROUTE)
+        
         message = res["body"]["Message"]
         if message == "":
             log_response("Logged in!!")
@@ -112,13 +116,8 @@ class FivePaisaClient:
     def _login_request(self, route):
         requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
         res = self.session.post(route, json=self.login_payload, headers=HEADERS)
-        
-        session_cookies = res.cookies
-        
-        cookies_dictionary = session_cookies.get_dict()
-        self.Jwt_token=cookies_dictionary['JwtToken']
-        
-        
+        resp=res.json()
+        self.Jwt_token=resp["body"]["JWTToken"]
         return res.json()
 
     def _set_client_code(self, client_code):
@@ -176,7 +175,16 @@ class FivePaisaClient:
         self.payload["head"]["password"] = self.PASSWORD 
         if req_type == "OP":
             url = self.ORDER_PLACEMENT_ROUTE
-            self.payload["head"]["requestCode"] = "5POrdReq"
+            self.payload["head"]["requestCode"] = "5PPlaceOrdReq"
+            HEADERS["Authorization"] = f'Bearer {self.Jwt_token}'
+        elif req_type == "OC":
+            url = self.ORDER_CANCEL_ROUTE
+            self.payload["head"]["requestCode"] = "5PCancelOrdReq"
+            HEADERS["Authorization"] = f'Bearer {self.Jwt_token}'
+        elif req_type == "OM":
+            url = self.ORDER_MODIFY_ROUTE
+            self.payload["head"]["requestCode"] = "5PModifyOrdReq"
+            HEADERS["Authorization"] = f'Bearer {self.Jwt_token}'
         elif req_type == "OS":
             url = self.ORDER_STATUS_ROUTE
             self.payload["head"]["requestCode"] = "5POrdStatus"
@@ -210,6 +218,7 @@ class FivePaisaClient:
         
         res = self.session.post(url, json=self.payload,
                                 headers=HEADERS).json()
+    
         log_response(res["body"]["Message"])
         return res["body"]
 
@@ -240,37 +249,30 @@ class FivePaisaClient:
         return self.order_request("MF")
 
     def set_payload(self, order: Order) -> None:
-        self.payload["head"]["appName"] = self.APP_NAME
-        self.payload["head"]["key"] = self.USER_KEY
-        self.payload["head"]["userId"] = self.USER_ID
-        self.payload["head"]["password"] = self.PASSWORD 
-        self.payload["body"]["OrderFor"] = order.order_for
         self.payload["body"]["Exchange"] = order.exchange
         self.payload["body"]["ExchangeType"] = order.exchange_segment
         self.payload["body"]["Price"] = order.price
         self.payload["body"]["OrderID"] = order.order_id
-        self.payload["body"]["OrderType"] = order.order_type
+        if order.scrip_code != 0:
+            self.payload["body"]["ScripCode"] = order.scrip_code
+        else:
+            self.payload["body"]["ScripData"] = order.scripData
+        if order.IsGTCOrder:
+            self.payload["body"]["IsGTCOrder"] = order.IsGTCOrder
+        if order.IsEOSOrder:
+            self.payload["body"]["IsEOSOrder"] = order.IsEOSOrder
         self.payload["body"]["Qty"] = order.quantity
-        # Passing today's unix timestamp
-        self.payload["body"]["OrderDateTime"] = f"/Date({TODAY_TIMESTAMP})/"
-        self.payload["body"]["ScripCode"] = order.scrip_code
-        self.payload["body"]["AtMarket"] = str(order.atmarket).lower()
-        self.payload["body"]["RemoteOrderID"] = order.remote_order_id
-        self.payload["body"]["ExchOrderID"] = order.exch_order_id
+        self.payload["body"]["IsAHOrder"] = order.ahplaced
         self.payload["body"]["DisQty"] = order.disqty
         self.payload["body"]["IsStopLossOrder"] = str(
             order.is_stoploss_order).lower()
-        self.payload["body"]["IsVTD"] = str(order.is_vtd).lower()
-        self.payload["body"]["IOCOrder"] = str(order.ioc_order).lower()
+        self.payload["body"]["IsIOCOrder"] = str(order.ioc_order).lower()
         self.payload["body"]["IsIntraday"] = str(order.is_intraday).lower()
-        self.payload["body"]["PublicIP"] = order.public_ip
-        self.payload["body"]["AHPlaced"] = order.ahplaced
+        self.payload["body"]["StopLossPrice"] = order.stoploss_price
         # Passing the next day's UNIX timestamp
         self.payload["body"]["ValidTillDate"] = f"/Date({NEXT_DAY_TIMESTAMP})/"
-        self.payload["body"]["TradedQty"] = order.traded_qty
-        self.payload["body"]["OrderRequesterCode"] = self.client_code
         self.payload["body"]["AppSource"] = self.APP_SOURCE
-        self.payload["body"]["iOrderValidity"] = order.order_validity
+        
         
     def set_payload_bo(self,boco:bo_co_order)-> None:
         """
@@ -312,29 +314,29 @@ class FivePaisaClient:
         Places a fresh order
         """
         self.set_payload(order)
-        self.payload["body"]["StopLossPrice"] = order.stoploss_price
+        self.payload["body"]["OrderType"] = order.order_type
+        self.payload["body"]["UniqueOrderID"] = order.unique_order_id
+        
         return self.order_request("OP")
 
     def modify_order(self, order: Order):
         """
         Modifies an existing order
         """
-   
         self.set_payload(order)
-        self.payload["body"]["StopLossPrice"] = order.stoploss_price
-        self.payload["body"]["OrderFor"] = "M"
-        
-        return self.order_request("OP")
+        self.payload["body"]["ExchOrderID"] = order.exch_order_id
+    
+        return self.order_request("OM")
 
-    def cancel_order(self,order_type:str, scrip_code:int, quantity:int,exchange:str,exchange_segment:str,exch_order_id:str):
+    def cancel_order(self,exchange:str,exchange_segment:str,exch_order_id:str):
         """
         Cancels an existing order
         """
-        order = Order(order_type=order_type, scrip_code=scrip_code,
-                      quantity=quantity,exchange=exchange,exchange_segment=exchange_segment, exch_order_id=exch_order_id, price=0.0,atmarket=False,is_intraday=False,order_for='C')
-        self.set_payload(order)
-        self.payload["body"]["StopLossPrice"] = order.stoploss_price
-        return self.order_request("OP")
+        self.payload["body"]["Exchange"]=exchange
+        self.payload["body"]["ExchangeType"]=exchange_segment
+        self.payload["body"]["ExchOrderID"]=exch_order_id
+        self.payload["body"]["AppSource"]=self.APP_SOURCE
+        return self.order_request("OC")
     
     def bo_order(self,boco:bo_co_order):
         self.set_payload_bo(boco)

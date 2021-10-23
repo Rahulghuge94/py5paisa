@@ -51,15 +51,13 @@ class AHPlaced(Enum):
 
 class Order:
 
-    def __init__(self, order_type: str, scrip_code: int, quantity: int, exchange: str,
-                 exchange_segment: str, price: float ,is_intraday: bool , atmarket: bool ,order_id: int = 0,
-                  remote_order_id: int = 1, exch_order_id: int = 0, order_for: str = 'P',
-                 stoploss_price: float = 0, is_stoploss_order: bool = False, ioc_order: bool = False,
-                  is_vtd: bool = False, vtd: str = f"/Date({NEXT_DAY_TIMESTAMP})/",
-                 ahplaced: str= 'N', public_ip: str = '192.168.1.1',
-                 order_validity: int =0, traded_qty: int = 0):
+    def __init__(self, order_type: str, quantity: int, exchange: str,
+                 exchange_segment: str, price: float ,is_intraday: bool , 
+                  unique_order_id: int = 1,  scrip_code: int=0, exch_order_id: int = 0,
+                 stoploss_price: float = 0, is_stoploss_order: bool = False, ioc_order: bool = False,scripdata: str='',
+                 order_id: int = 0,vtd: str = f"/Date({NEXT_DAY_TIMESTAMP})/",
+                 ahplaced: str= 'N',IsGTCOrder:bool =False,IsEOSOrder:bool =False):
 
-        self.order_for = order_for
         self.exchange = exchange
         self.exchange_segment = exchange_segment
         self.price = price
@@ -67,20 +65,18 @@ class Order:
         self.order_type = order_type
         self.quantity = quantity
         self.scrip_code = scrip_code
-        self.atmarket = atmarket
-        self.remote_order_id = remote_order_id
+        self.unique_order_id = unique_order_id
         self.exch_order_id = exch_order_id
-        self.disqty = 0
+        self.disqty = quantity
         self.stoploss_price = stoploss_price
         self.is_stoploss_order = is_stoploss_order
         self.ioc_order = ioc_order
         self.is_intraday = is_intraday
-        self.is_vtd = is_vtd
         self.vtd = vtd
         self.ahplaced = ahplaced
-        self.public_ip = public_ip
-        self.order_validity = order_validity
-        self.traded_qty = traded_qty
+        self.scripData=scripdata
+        self.IsGTCOrder=IsGTCOrder
+        self.IsEOSOrder=IsEOSOrder
         
 
 class bo_co_order:
